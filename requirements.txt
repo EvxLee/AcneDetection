@@ -1,0 +1,15 @@
+# Data access (needed now)
+requests>=2.31.0
+Pillow>=10.0.0
+python-dotenv>=1.0.0
+
+# Part 1 — Detection (add when ready)
+# torch>=2.1.0
+# torchvision>=0.16.0
+# transformers>=4.35.0
+# accelerate>=0.24.0
+
+# Part 2 — Classification (add when ready)
+# opencv-python>=4.8.0
+# scikit-learn>=1.3.0
+# matplotlib>=3.7.0

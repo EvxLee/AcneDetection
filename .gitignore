@@ -1,0 +1,26 @@
+# secrets
+.env
+
+# local data — download via part1_detection/roboflow_loader.py
+data/acne04/
+data/dermnet/
+data/patches/
+
+# model outputs
+outputs/
+
+# cloned sub-repos
+yolov5/
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+
+# notebooks
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
