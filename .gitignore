@@ -3,6 +3,7 @@
 
 # local data — download via part1_detection/roboflow_loader.py
 data/acne04/
+data/acne04_yolo/
 data/dermnet/
 data/patches/
 
