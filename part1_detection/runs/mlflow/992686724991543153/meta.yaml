@@ -1,0 +1,7 @@
+artifact_location: /Users/evanlee/Desktop/AcneDetection/part1_detection/runs/mlflow/992686724991543153
+creation_time: 1778109644005
+experiment_id: '992686724991543153'
+last_update_time: 1778109644005
+lifecycle_stage: active
+name: ../outputs/yolov8
+workspace: default

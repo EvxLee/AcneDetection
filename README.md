@@ -69,10 +69,8 @@ ROBOFLOW_VERSION=1
 # Check dataset info (no images downloaded)
 python part1_detection/roboflow_loader.py
 
-# Download all images locally
-python part1_detection/roboflow_loader.py --download --split train --n 1450
-python part1_detection/roboflow_loader.py --download --split valid --n 1450
-python part1_detection/roboflow_loader.py --download --split test  --n 1450
+# Download all splits at once (train + valid + test)
+python part1_detection/roboflow_loader.py --download
 ```
 
 After this, `data/acne04/train/`, `data/acne04/valid/`, and `data/acne04/test/` will contain the images and COCO annotation JSON files.
@@ -81,9 +79,16 @@ After this, `data/acne04/train/`, `data/acne04/valid/`, and `data/acne04/test/` 
 
 ## Step 2 — Part 1: Detection
 
-Train at least two object detection models on ACNE04 to localize acne lesions. Compare using mAP, Precision, Recall, and IoU.
+Run the notebooks in order:
 
-*(Training scripts coming as we build them out.)*
+```
+part1_detection/
+├── 01_data_explore.ipynb      # verify data, class distribution, sample visualisation
+├── 02_yolov8_train.ipynb      # convert COCO → YOLOv8 format, fine-tune yolov8s
+├── 03_faster_rcnn_train.ipynb # fine-tune Faster R-CNN (ResNet-50 + FPN)
+├── 04_evaluate.ipynb          # mAP@50, mAP@50-95, precision, recall comparison
+└── 05_visualize.ipynb         # side-by-side prediction grids
+```
 
 ---
 
@@ -100,11 +105,11 @@ Train a binary classifier (acne vs. non-acne) on patches cropped from ACNE04, th
 ```
 AcneDetection/
 ├── part1_detection/
-│   └── roboflow_loader.py    # lazy ACNE04 data pull via Roboflow API
-├── part2_classification/     # coming soon
-├── data/                     # gitignored — populated by roboflow_loader.py
-│   ├── acne04/
-│   └── dermnet/
+│   └── roboflow_loader.py    # downloads ACNE04 via Roboflow SDK
+├── part2_classification/     # coming after Part 1
+├── data/                     # gitignored — populated at runtime
+│   ├── acne04/               # train/ valid/ test/ + COCO annotations
+│   └── dermnet/              # populated manually from Kaggle (Part 2)
 ├── .env.example
 ├── requirements.txt
 └── README.md

@@ -1,0 +1,11 @@
+names:
+- Acne
+- nodules and cysts
+- papules
+- pustules
+- whitehead and blackhead
+nc: 5
+path: /Users/evanlee/Desktop/AcneDetection/data/acne04_yolo
+test: images/test
+train: images/train
+val: images/val
