@@ -10,6 +10,13 @@ data/patches/
 # model outputs
 outputs/
 
+# ultralytics training runs (generated locally/in Colab)
+runs/
+part1_detection/runs/
+
+# ultralytics pretrained weights (auto-downloaded at runtime)
+*.pt
+
 # cloned sub-repos
 yolov5/
 
