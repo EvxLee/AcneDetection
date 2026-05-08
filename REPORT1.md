@@ -7,7 +7,7 @@
 
 ## TL;DR
 
-Trained YOLOv8s and Faster R-CNN on ACNE04 for acne lesion localization. On the held-out test set using a consistent pycocotools COCO evaluation pipeline, Faster R-CNN achieved mAP@0.5 = 0.128 vs YOLOv8s at 0.086. Both models struggle primarily with small lesions (<30px) and dense lesion clusters — a direct consequence of the dataset scale (~1,400 images) and lesion size relative to network stride.
+Trained YOLOv8s and Faster R-CNN on ACNE04 for acne lesion localization. On the held-out test set (142 images) using a consistent pycocotools COCO evaluation pipeline, Faster R-CNN achieved mAP@0.5 = 0.156 vs YOLOv8s at 0.057. The models exhibit opposite failure modes: YOLOv8 is highly conservative (P=0.54, R=0.08) while Faster R-CNN finds far more lesions with lower precision (P=0.32, R=0.45). Both models struggle primarily with small lesions (<30px) and dense lesion clusters — a direct consequence of the dataset scale (~1,400 images) and lesion size relative to network stride.
 
 ---
 
@@ -19,27 +19,27 @@ Trained YOLOv8s and Faster R-CNN on ACNE04 for acne lesion localization. On the 
 
 | Split | Images | Annotated Lesions |
 |---|---|---|
-| Train | 1,132 | ~11,000 |
-| Val | 218 | ~2,100 |
-| Test | 100 | ~950 |
-| **Total** | **~1,450** | **~14,000** |
+| Train | 991 | 13,389 |
+| Val | 283 | 3,425 |
+| Test | 142 | 1,737 |
+| **Total** | **1,416** | **18,551** |
 
 - **Annotation format:** COCO bounding boxes (x, y, w, h)
-- **Lesion subtypes:** Papule, pustule, nodule/cyst, whitehead/blackhead — **treated as a single "acne" class** for detection (subtype discrimination was out of scope)
+- **Lesion subtypes:** Papule, pustule, nodule/cyst, whitehead/blackhead — **trained and evaluated as four separate classes** (the COCO annotations retain subtype labels; mAP reported is the mean across all four)
 - **Lesion size:** Predominantly 20–90px bounding box side length on images that are typically 1024px+; see Section 3 for implications
 - **Density:** Ranges from 1 to 50+ annotated lesions per image
 
-> **On the class distribution figure:** The chart below shows the per-subtype annotation count. Because all four subtypes are collapsed to one detection class during training, the distribution matters primarily as a data quality check — no subtype is vanishingly rare, so class weighting was unnecessary.
+> **On the class distribution figure:** Nodules/cysts dominate (5,757 train annotations) while whitehead/blackhead are rarest (675). Because no subtype is vanishingly rare, class weighting was unnecessary. Per-class mAP at validation: pustules and whiteheads (~0.30) outperform papules and nodules (~0.12–0.14), likely because the former are rounder and more visually distinct.
 
 ### Sample Images with Annotations
 
-![Sample annotations](outputs/figures/sample_annotations.png)
+![Sample annotations](outputs/part1/sample_annotations.png)
 
 *Sample ACNE04 images with ground-truth bounding boxes. Note the wide variation in lesion count, size, and skin tone.*
 
 ### Class Distribution
 
-![Class distribution](outputs/figures/class_distribution.png)
+![Class distribution](outputs/part1/class_distribution.png)
 
 ---
 
@@ -84,27 +84,38 @@ YOLOv8 enables mosaic augmentation by default, which composites four images into
 
 ```
 # YOLOv8s — Ultralytics defaults, not tuned
-epochs     = 100  (early stopped at epoch 46, patience=15)
+epochs     = 100  (ran all 100; best checkpoint at epoch 55)
 batch_size = 16
 optimizer  = AdamW
 lr0        = 0.01
 imgsz      = 640
 
-# Faster R-CNN — PyTorch defaults, not tuned
-epochs     = 50
-batch_size = 4
-optimizer  = Adam, lr=1e-4, weight_decay=1e-4
+# Faster R-CNN — not tuned
+epochs     = 20
+batch_size = 8
+optimizer  = SGD, lr=1e-3, momentum=0.9, weight_decay=1e-4
+scheduler  = StepLR, step_size=5, gamma=0.5
 backbone   = ResNet50-FPN (ImageNet pretrained)
 ```
 
-No hyperparameter search was performed. Both models use their respective framework defaults as a reasonable starting point given the dataset size.
+No hyperparameter search was performed. Both models use reasonable starting-point settings given the dataset size. Faster R-CNN's best validation checkpoint was at epoch 8 (val loss = 1.0654); subsequent epochs showed no meaningful improvement under StepLR decay.
+
+### Training Curves
+
+![YOLOv8 training curves](outputs/part1/yolov8_training_curves.png)
+
+*YOLOv8s box loss, cls loss, and mAP@0.5 over 100 epochs. Best checkpoint at epoch 55.*
+
+![Faster R-CNN loss](outputs/part1/faster_rcnn_loss.png)
+
+*Faster R-CNN train vs validation loss over 20 epochs. Best checkpoint at epoch 8; StepLR decay causes validation loss to plateau after that.*
 
 ### Hardware & Training Time
 
 | Model | GPU | Training Time |
 |---|---|---|
-| YOLOv8s | A100 | ~20 min (46 effective epochs) |
-| Faster R-CNN | A100 | ~3 hours (50 epochs) |
+| YOLOv8s | A100 (80GB) | ~20 min (100 epochs, best at epoch 55) |
+| Faster R-CNN | A100 (80GB) | ~1 hour (20 epochs, best at epoch 8) |
 
 ---
 
@@ -112,30 +123,35 @@ No hyperparameter search was performed. Both models use their respective framewo
 
 ### Evaluation Pipeline
 
-Both models were evaluated on the same held-out test set (100 images) using the **pycocotools COCO evaluation standard** (IoU thresholds 0.5:0.05:0.95, confidence threshold = 0.25). Precision and Recall are reported at the shared confidence threshold of 0.25, matched at IoU ≥ 0.5.
+Both models were evaluated on the same held-out test set (142 images) using the **pycocotools COCO evaluation standard** (IoU thresholds 0.5:0.05:0.95, confidence threshold = 0.25). Precision and Recall are reported at the shared confidence threshold of 0.25, matched at IoU ≥ 0.5.
 
-> **On the val/test gap for YOLOv8:** YOLOv8's built-in trainer reported mAP@0.5 = 0.2273 on the *validation* set during training (best epoch 46). The test-set evaluation yields mAP@0.5 = 0.0861 using the same Ultralytics evaluation code. This is a genuine train/test split generalization gap — not a methodology difference — and suggests the model partially overfit to the 218-image validation set distribution.
+> **On the val/test gap for YOLOv8:** YOLOv8's built-in trainer reported mAP@0.5 = 0.2137 on the *validation* set at best epoch 55. The test-set evaluation yields mAP@0.5 = 0.0571 using the same Ultralytics evaluation code. This is a genuine train/test generalization gap — not a methodology difference — and likely reflects partial overfitting to the 283-image validation set distribution.
 
 ### Quantitative Comparison (Test Set)
 
-| Model | mAP@0.5 | mAP@0.5:0.95 | Precision | Recall | Inference (ms/img) |
-|---|---|---|---|---|---|
-| YOLOv8s | 0.0861 | 0.0235 | 0.4937 | 0.1252 | ~5 |
-| **Faster R-CNN** | **0.1283** | **0.0325** | ~0.xx | ~0.xx | ~50 |
+| Model | mAP@0.5 | mAP@0.5:0.95 | Precision | Recall | Detections (conf≥0.25) | Mean IoU | Inference (ms/img) |
+|---|---|---|---|---|---|---|---|
+| YOLOv8s | 0.057 | 0.014 | **0.536** | 0.078 | 156 | **0.533** | 72 |
+| **Faster R-CNN** | **0.156** | **0.037** | 0.316 | **0.453** | 2,489 | 0.369 | 146 |
 
-> **Note on Faster R-CNN Precision/Recall:** The original evaluation incorrectly used `evaluator.stats[6]` (AR@1 — average recall with max 1 detection per image) as the Recall figure, yielding 0.026 — an internally inconsistent number given mAP@0.5 = 0.128. Precision and Recall in the table above are now computed at confidence = 0.25 by matching predictions to GT at IoU ≥ 0.5. Fill in actual values after re-running the evaluation notebook.
+The two models are not simply "better/worse" — they operate at fundamentally different points on the PR curve:
+
+- **YOLOv8s** is highly conservative: 156 detections total at conf≥0.25, but those detections are better-localized (mean IoU 0.533). When it fires, it fires accurately.
+- **Faster R-CNN** is permissive: 16× more detections (2,489), with mean IoU only 0.369 and ~650 detections that have IoU=0 with any GT box (pure false positives). Its higher mAP comes from extending to higher recall at the cost of precision — not from being uniformly more accurate per detection.
+
+Inference latency is ~2× (72 vs 146 ms/img on A100). On a CPU or mobile chip, YOLO's advantage would grow significantly.
 
 ### Precision-Recall Curves
 
-![PR curves](outputs/figures/pr_curves.png)
+![PR curves](outputs/part1/pr_curves.png)
 
-*PR curves computed from all detections across the test set, sorted by confidence, matched to GT at IoU = 0.5. Area under each curve equals mAP@0.5.*
+*PR curves at IoU=0.5. Below recall ~0.4, YOLOv8 has higher precision than Faster R-CNN. Above recall ~0.4, Faster R-CNN dominates because YOLOv8 cannot reach those recall regimes at all under default confidence calibration. The mAP gap comes almost entirely from this high-recall region.*
 
 ### IoU Distribution
 
-![IoU distribution](outputs/figures/iou_distribution.png)
+![IoU distribution](outputs/part1/iou_distribution.png)
 
-*Per-detection max IoU with the nearest GT box, at confidence ≥ 0.25. The fraction above the red 0.5 line is the precision-recall numerator at that threshold. A bimodal distribution (peak near 0 and near 0.7+) indicates the model is either confidently wrong (false positives) or reasonably well-localized.*
+*YOLOv8s: 156 detections, mean IoU 0.533, 68.6% matched at IoU≥0.5. Faster R-CNN: 2,489 detections, mean IoU 0.369, 39.1% matched. The large spike at IoU=0 for Faster R-CNN (~650 detections) represents false positives with no overlap with any GT box.*
 
 ---
 
@@ -143,28 +159,20 @@ Both models were evaluated on the same held-out test set (100 images) using the 
 
 ### Detection Visualizations
 
-**YOLOv8s predictions:**
+**Side-by-side comparison (YOLOv8s vs Faster R-CNN):**
 
-![YOLOv8 detections](outputs/figures/yolov8.png)
+![Detection comparison](outputs/part1/detection_comparision.png)
 
-**Faster R-CNN predictions:**
-
-![Faster R-CNN detections](outputs/figures/faster-r-cnn.png)
-
-**Side-by-side comparison:**
-
-![Part 1 final comparison](outputs/figures/part1final.png)
+*Each column shows the same image with YOLOv8s predictions (left) and Faster R-CNN predictions (right). Note YOLOv8's sparse detections vs Faster R-CNN's higher recall.*
 
 ### Failure Cases
 
-*Add 2–3 actual failure images from Colab output (`outputs/figures/detection_comparison.png` shows 6 side-by-side comparisons — pull the worst cases here.)*
-
-| Failure Mode | Why It Happens |
-|---|---|
-| **Small lesions missed** | At 640px input, 20px lesions become ~12px — at or below YOLOv8's stride-8 anchor scale. Faster R-CNN's RPN also anchors start at ~32px. |
-| **Dense lesion clusters** | NMS suppresses overlapping predictions. When 10+ lesions are within a 100px region, both models collapse them into 1–2 boxes. |
-| **False positives on pores/hair follicles** | Texture similarity to small papules; more common in YOLOv8 which relies purely on single-scale feature maps at the smallest detection head. |
-| **Conservative Faster R-CNN at high conf** | At conf=0.25, Faster R-CNN already filters most predictions — recall is inherently lower at higher thresholds than the PR curve AUC implies. |
+| Failure Mode | Model | Why It Happens |
+|---|---|---|
+| **Small lesions missed** | Both | At 640px input, 20px lesions become ~12px — at or below YOLOv8's stride-8 limit. Faster R-CNN's RPN anchors also start at ~32px. |
+| **Dense lesion clusters** | Both | NMS suppresses overlapping predictions. When 10+ lesions are within a 100px region, both models collapse them into 1–2 boxes. |
+| **YOLOv8 misses most lesions (R=0.08)** | YOLOv8 | Confidence scores on small/dense lesions fall below 0.25 threshold; mosaic augmentation further shrinks effective object size during training. |
+| **False positives on pores/hair follicles** | Faster R-CNN | Texture similarity to small papules; more common at lower confidence thresholds where recall is higher (P=0.32 at conf=0.25). |
 
 ---
 
@@ -172,7 +180,7 @@ Both models were evaluated on the same held-out test set (100 images) using the 
 
 ### Per-Lesion-Density Analysis
 
-![Density mAP](outputs/figures/density_map.png)
+![Density mAP](outputs/part1/density_map.png)
 
 *mAP@0.5 broken down by lesion density bin. This shows whether the gap between models is uniform or concentrated in specific difficulty levels.*
 
@@ -182,12 +190,19 @@ The density-bin results reveal where each model's architectural choice matters m
 
 ### Speed / Accuracy Tradeoff
 
-YOLOv8s is ~10× faster at inference (~5ms vs ~50ms per image on A100) and trivially deployable as a single `.pt` file. For a mobile or real-time screening application, YOLOv8 is the practical choice. Faster R-CNN's higher mAP matters in a clinical pipeline where false negatives carry higher cost and latency is acceptable.
+YOLOv8s is ~2× faster at inference (72ms vs 146ms per image on A100) and trivially deployable as a single `.pt` file. However, the recall gap (R=0.08 vs R=0.45) is far more clinically significant than the latency difference. For a screening application where missing a lesion is more costly than a false alarm, Faster R-CNN is the clear choice. YOLOv8 would become competitive if its recall could be raised — e.g., by lowering the confidence threshold, increasing input resolution, or disabling mosaic augmentation.
 
-### Where Both Models Fall Short
+### Where Both Models Hit Their Ceiling
 
-Both models are significantly below dermatology detection benchmarks in the literature (mAP@0.5 > 0.40 is typical on datasets with 10k+ images and specialist annotation). The three primary limitations:
+Both are well below dermatology benchmarks (mAP@0.5 > 0.40 typical with 10k+ images). Three primary limiters:
 
-1. **Dataset size:** ~1,400 images is small for a fine-grained detection task. Augmentation and pretraining help but cannot substitute for data volume.
-2. **Small object scale:** Lesions at 12–15px effective input size are at the limit of what COCO-trained backbones can resolve.
-3. **Annotation quality:** Boundary ambiguity between subtypes (whitehead vs small papule) introduces label noise that caps how high precision can realistically get.
+1. **Dataset size:** ~1,400 images is small for fine-grained dense detection.
+2. **Object scale:** 12–15px effective input size pushes COCO-pretrained backbones to their limit.
+3. **Annotation ambiguity:** Subtype boundary ambiguity (whitehead vs small papule) introduces label noise that caps achievable precision.
+
+### What I Would Change Next
+
+1. Train YOLOv8 at 1280px input with mosaic disabled — directly addresses the two biggest recall failure modes.
+2. Add image tiling at inference for both models — no retraining required.
+3. Stricter early stopping on val mAP (patience=5) to reduce YOLOv8's val overfitting.
+4. Replace COCO-pretrained backbone with a face/skin-pretrained one if available.
