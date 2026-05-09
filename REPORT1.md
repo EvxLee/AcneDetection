@@ -104,7 +104,7 @@ No hyperparameter search was performed. Both models use reasonable starting-poin
 
 ![YOLOv8 training curves](outputs/part1/yolov8_training_curves.png)
 
-*YOLOv8s box loss, cls loss, and mAP@0.5 over 100 epochs. Best checkpoint at epoch 55.*
+*YOLOv8s box loss, cls loss, and mAP@0.5 over 100 epochs. Best checkpoint at epoch 55. Note that validation box loss bottoms around epoch 40 and rises afterward, indicating overfitting past that point. mAP@0.5 continues to improve marginally; with stricter early stopping the model would likely generalize better. (Addressed in §6.)*
 
 ![Faster R-CNN loss](outputs/part1/faster_rcnn_loss.png)
 
@@ -163,7 +163,7 @@ Inference latency is ~2× (72 vs 146 ms/img on A100). On a CPU or mobile chip, Y
 
 ![Detection comparison](outputs/part1/detection_comparision.png)
 
-*Each column shows the same image with YOLOv8s predictions (left) and Faster R-CNN predictions (right). Note YOLOv8's sparse detections vs Faster R-CNN's higher recall.*
+*Each row shows the same image: ground truth (left), YOLOv8s predictions (center), Faster R-CNN predictions (right). Note YOLOv8's sparse detections vs Faster R-CNN's higher coverage.*
 
 ### Failure Cases
 
@@ -182,11 +182,19 @@ Inference latency is ~2× (72 vs 146 ms/img on A100). On a CPU or mobile chip, Y
 
 ![Density mAP](outputs/part1/density_map.png)
 
-*mAP@0.5 broken down by lesion density bin. This shows whether the gap between models is uniform or concentrated in specific difficulty levels.*
+*mAP@0.5 broken down by lesion density bin. Per-bin mAP is computed by running pycocotools on each density subset independently; values can exceed overall mAP because the per-subset PR curve does not include cross-subset false positives.*
 
-The density-bin results reveal where each model's architectural choice matters most:
-- On **low-density images** (1–5 lesions), both models perform similarly — region proposals vs anchor-free doesn't matter much when objects are well-separated
-- On **high-density images** (16+ lesions), Faster R-CNN's explicit RPN suppresses fewer true positives than YOLOv8's single-pass NMS — which is the mechanistic explanation for its higher overall mAP, grounded in the actual data
+| Density bin | Images | YOLOv8s mAP@0.5 | Faster R-CNN mAP@0.5 |
+|---|---|---|---|
+| Low (1–5 lesions) | 54 | **0.181** | 0.159 |
+| Med (6–15 lesions) | 60 | 0.333 | **0.366** |
+| High (16+ lesions) | 28 | 0.076 | 0.078 |
+
+The results are more nuanced than the standard "two-stage beats one-stage on dense objects" narrative:
+
+- **Low density (1–5):** YOLOv8 actually outperforms Faster R-CNN (0.181 vs 0.159). With well-separated lesions, its conservative confidence calibration is a feature — fewer false positives, and the lesions it does detect are well-localized.
+- **Medium density (6–15):** Faster R-CNN's advantage appears here (0.366 vs 0.334), where its explicit RPN handles moderate occlusion better than YOLOv8's single-pass NMS.
+- **High density (16+):** Both models collapse equally (~0.077). At this density, NMS-based suppression and RPN anchor overlap both fail — neither architecture has a meaningful edge. Note: only 28 images fall in this bin, so this estimate is the noisiest of the three. Tiling or anchor-free methods designed for crowded scenes would be needed to meaningfully improve here.
 
 ### Speed / Accuracy Tradeoff
 
