@@ -2,15 +2,20 @@
 roboflow>=1.1.0
 python-dotenv>=1.0.0
 
-# ── Part 1: Detection ─────────────────────────────────────────────────────────
+# ── Core ML ───────────────────────────────────────────────────────────────────
 torch>=2.1.0
 torchvision>=0.16.0
-ultralytics>=8.0.0       # YOLOv8
-pycocotools>=2.0.7       # COCO evaluation for Faster R-CNN
-PyYAML>=6.0              # dataset config files
-matplotlib>=3.7.0        # visualisation
+numpy>=1.24.0
 Pillow>=10.0.0
+matplotlib>=3.7.0
 
-# ── Part 2: Classification (coming soon) ──────────────────────────────────────
-# scikit-learn>=1.3.0
-# opencv-python>=4.8.0
+# ── Part 1: Detection ─────────────────────────────────────────────────────────
+ultralytics>=8.0.0          # YOLOv8
+pycocotools>=2.0.7          # COCO evaluation for Faster R-CNN
+PyYAML>=6.0                 # dataset config files
+
+# ── Part 2: Classification & Domain Adaptation ────────────────────────────────
+scikit-learn>=1.3.0         # accuracy_score, f1_score, roc_auc_score
+scikit-image>=0.21.0        # skimage.color (LAB), match_histograms
+facenet-pytorch>=2.5.3      # InceptionResnetV1 VGGFace2 backbone
+grad-cam>=1.4.8             # pytorch-grad-cam (GradCAM visualizations)

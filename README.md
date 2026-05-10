@@ -11,35 +11,14 @@ Two-part computer vision project: acne lesion detection (Part 1) and cross-domai
 - **Roboflow:** https://universe.roboflow.com/acne-vulgaris-detection/acne04-detection/
 
 ### DermNet (Part 2 only)
-23-class skin condition dataset for cross-domain evaluation.
+23-class skin condition dataset used for cross-domain evaluation.
 - **Kaggle:** https://www.kaggle.com/datasets/shubhamgoel27/dermnet
-- Download and place at `data/dermnet/`
-
----
-
-## How the data pipeline works
-
-Images are hosted on Roboflow's servers — nothing is stored in this repo. The `data/` folder starts empty and gets populated when you run the loader.
-
-```
-Roboflow's servers             Your machine
-──────────────────             ──────────────────────────────
-1,450 images + labels  →  roboflow_loader.py  (uses your API key)
-                                   │
-                          Step 1: fetch metadata only
-                          (a lightweight JSON list of image
-                          URLs + bounding box coords — fast,
-                          no images downloaded yet)
-                                   │
-                          Step 2: download images on demand
-                          OR batch-download to data/acne04/
-                                   │
-                          Step 3 (later): feed into a model
-```
-
-`roboflow_loader.py` has two modes:
-- **Lazy mode** (default) — loads just the URL list. Call `ds[0]` to fetch one image at a time over the internet. Good for quick inspection.
-- **Download mode** (`--download`) — saves image files to `data/acne04/` so you can work offline and train at full speed.
+- Download and unzip — place the root folder at `data/dermnet/` so the structure is:
+  ```
+  data/dermnet/
+  ├── train/   (23 subfolders)
+  └── test/    (23 subfolders)
+  ```
 
 ---
 
@@ -63,53 +42,97 @@ ROBOFLOW_VERSION=1
 
 ---
 
-## Step 1 — Access the data
+## Part 1 — Acne Detection
+
+### Step 1: Download ACNE04
 
 ```bash
-# Check dataset info (no images downloaded)
-python part1_detection/roboflow_loader.py
-
-# Download all splits at once (train + valid + test)
+# Download all splits (train + valid + test) to data/acne04/
 python part1_detection/roboflow_loader.py --download
 ```
 
-After this, `data/acne04/train/`, `data/acne04/valid/`, and `data/acne04/test/` will contain the images and COCO annotation JSON files.
+After this, `data/acne04/train/`, `data/acne04/valid/`, and `data/acne04/test/` will contain images and COCO annotation JSON files.
 
----
-
-## Step 2 — Part 1: Detection
-
-Run the notebooks in order:
+### Step 2: Run notebooks in order
 
 ```
-part1_detection/
-├── 01_data_explore.ipynb      # verify data, class distribution, sample visualisation
-├── 02_yolov8_train.ipynb      # convert COCO → YOLOv8 format, fine-tune yolov8s
-├── 03_faster_rcnn_train.ipynb # fine-tune Faster R-CNN (ResNet-50 + FPN)
-├── 04_evaluate.ipynb          # mAP@50, mAP@50-95, precision, recall comparison
-└── 05_visualize.ipynb         # side-by-side prediction grids
+notebooks/
+├── 01_data_explore.ipynb       # verify data, class distribution, sample visualisation
+├── 02_yolov8_train.ipynb       # convert COCO → YOLOv8 format, fine-tune yolov8s
+├── 03_faster_rcnn_train.ipynb  # fine-tune Faster R-CNN (ResNet-50 + FPN)
+├── 04_evaluate.ipynb           # mAP@50, mAP@50-95, precision, recall comparison
+└── 05_visualize.ipynb          # side-by-side prediction grids
 ```
 
 ---
 
-## Step 3 — Part 2: Classification
+## Part 2 — Cross-Domain Classification
 
-Train a binary classifier (acne vs. non-acne) on patches cropped from ACNE04, then evaluate cross-domain on DermNet. Includes domain adaptation and Grad-CAM visualizations.
+### Quick path: Google Colab (recommended)
 
-*(Coming after Part 1 is complete.)*
+Open `notebooks/part2_colab.ipynb` in Colab. Set runtime to **A100 GPU**, then run all cells top-to-bottom. The notebook handles all setup, downloads, training, and evaluation end-to-end.
+
+### Local GPU path: step-by-step notebooks
+
+**Prerequisites:** ACNE04 already downloaded (`data/acne04/`) and DermNet placed at `data/dermnet/`.
+
+Run notebooks in order:
+
+| Notebook | What it does | Runtime |
+|---|---|---|
+| `06_patch_extraction.ipynb` | Crops acne patches (positive) and clear-skin patches (negative) from ACNE04 bounding boxes | ~5 min CPU |
+| `07_train_classifier.ipynb` | Fine-tunes EfficientNet-B0 on ~22k patches for 20 epochs | ~20 min GPU |
+| `08_domain_adaptation.ipynb` | Full adaptation pipeline: color norm, 2-stage few-shot fine-tuning, TTA, FaceNet; saves results | ~30 min GPU |
+| `09_evaluate_dermnet.ipynb` | Lightweight standalone: baseline EfficientNet eval on DermNet test set only | ~5 min GPU |
+| `10_gradcam_visualize.ipynb` | Grad-CAM heatmaps on 10 DermNet test images | ~2 min GPU |
+
+**Output files** (all written to `outputs/part2/`):
+
+```
+outputs/part2/
+├── sample_patches.png          # from 06
+├── classifier_training_curves.png  # from 07
+├── domain_gap.png              # from 08
+├── rgb_channel_stats.png       # from 08
+├── augmentation_examples.png   # from 08
+├── color_normalization.png     # from 08
+├── final_model_results.png     # from 08 (baseline vs full pipeline)
+├── dermnet_results.json        # from 08 (full ablation metrics)
+└── gradcam_dermnet.png         # from 10
+
+outputs/classifier/
+├── best.pth                    # ACNE04-trained checkpoint (from 07)
+└── finetuned.pth               # DermNet-adapted checkpoint (from 08)
+```
 
 ---
 
-## Structure
+## Repo Structure
 
 ```
 AcneDetection/
+├── notebooks/
+│   ├── part2_colab.ipynb        # Part 2 end-to-end (Colab, recommended)
+│   ├── 01_data_explore.ipynb    # Part 1
+│   ├── 02_yolov8_train.ipynb
+│   ├── 03_faster_rcnn_train.ipynb
+│   ├── 04_evaluate.ipynb
+│   ├── 05_visualize.ipynb
+│   ├── 06_patch_extraction.ipynb   # Part 2 — local GPU
+│   ├── 07_train_classifier.ipynb
+│   ├── 08_domain_adaptation.ipynb
+│   ├── 09_evaluate_dermnet.ipynb
+│   └── 10_gradcam_visualize.ipynb
 ├── part1_detection/
-│   └── roboflow_loader.py    # downloads ACNE04 via Roboflow SDK
-├── part2_classification/     # coming after Part 1
-├── data/                     # gitignored — populated at runtime
-│   ├── acne04/               # train/ valid/ test/ + COCO annotations
-│   └── dermnet/              # populated manually from Kaggle (Part 2)
+│   └── roboflow_loader.py       # downloads ACNE04 via Roboflow SDK
+├── data/                        # gitignored — populated at runtime
+│   ├── acne04/                  # train/ valid/ test/ + COCO annotations
+│   ├── dermnet/                 # populated manually from Kaggle (Part 2)
+│   └── patches/                 # generated by 06_patch_extraction.ipynb
+├── outputs/
+│   ├── part2/                   # figures + dermnet_results.json
+│   └── classifier/              # best.pth + finetuned.pth
+├── REPORT2.md                   # Part 2 writeup (1–2 page format)
 ├── .env.example
 ├── requirements.txt
 └── README.md
@@ -117,28 +140,3 @@ AcneDetection/
 
 ---
 
-## Results
-
-**Part 1 — Detection (mAP@50)**
-
-| Model | mAP@50 | Precision | Recall |
-|-------|--------|-----------|--------|
-| YOLOv5 | — | — | — |
-| Faster R-CNN | — | — | — |
-| DINO-DETR | — | — | — |
-
-**Part 2 — Classification on DermNet test set**
-
-| Method | Accuracy | F1 | AUROC |
-|--------|----------|----|-------|
-| No adaptation | — | — | — |
-| + Histogram match | — | — | — |
-| + Reinhard norm | — | — | — |
-
----
-
-## References
-
-1. Redmon & Farhadi. *YOLOv5.* Ultralytics, 2020.
-2. Ren et al. *Faster R-CNN.* NeurIPS 2015.
-3. Zhang et al. *DINO: DETR with Improved DeNoising Anchor Boxes.* ICLR 2023.
