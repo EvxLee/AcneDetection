@@ -1,7 +1,9 @@
 # Acne Detection & Cross-Domain Classification
 
 Two-part computer vision project: acne lesion detection (Part 1) and cross-domain binary classification (Part 2).
-
+High Level Analysis and breakdown of results are in these 2 Notion Pages
+Part 1: https://www.notion.so/Yang-Lab-Project-Presentation-35aa5f597a88808f902ff2727c5becb4?source=copy_link
+Part 2: https://www.notion.so/Yang-Lab-Project-Presentation-2-35ca5f597a8880b7bbf7df8c6535e755?source=copy_link
 ---
 
 ## Datasets
